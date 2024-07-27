@@ -1,12 +1,16 @@
 # ORT App Server (experimental)
-* This is under development and is rough.
-* Only CPU is supported at this time.
-* Only language models are supported at this time.
-* The HTTP API is OpenAI _mostly_ compliant as in it supports a limited set of HTTP request params like top_p, temperature, top_k, repetition_penalty.
+* This is under active development.
+* Current limitations
+   * Works on Linux only
+   * Only CPU
+   * Only language models
+   * The HTTP API is OpenAI compliant but supports only a limited set of (optional) HTTP request params
+        like max_length, top_p, temperature, top_k, repetition_penalty, num_beams and do_sample.
+        See https://onnxruntime.ai/docs/genai/reference/config.html#search-combinations
 
 ## Build and Install
 * First install the latest onnxruntime-genai pkg here https://github.com/microsoft/onnxruntime-genai/releases/tag/v0.3.0
-* 
+*
 ```
 mkdir build
 cd build

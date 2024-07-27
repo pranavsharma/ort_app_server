@@ -1,6 +1,10 @@
 #include "json.hpp"
 
-namespace oga {
+namespace ops {
+enum class Status {
+  OK,
+  FAIL
+};
 static nlohmann::json FormatStreamingChatResponse(const char* content, bool stop) {
   /*
   OpenAI format
@@ -87,4 +91,4 @@ static T JsonValue(const nlohmann::json& body, const std::string& key,
              ? body.value(key, default_value)
              : default_value;
 }
-}  // namespace oga
+}  // namespace ops
