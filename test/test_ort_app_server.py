@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+
 import requests
 import sseclient
 import json
@@ -8,6 +11,7 @@ def get_args() -> argparse:
     parser = argparse.ArgumentParser()
     parser.add_argument("--do_stream", action="store_true")
     parser.add_argument("--max_length", type=int, default=1024)
+    parser.add_argument("--model", type=str)
     return parser.parse_args()
 
 def main() -> int:
@@ -23,8 +27,8 @@ def main() -> int:
         prompt = f'{chat_template.format(input=text)}'
         #print("prompt: ", prompt)
         headers = {'Accept': 'text/event-stream'}
-        req_body = '{"max_length": %d, "stream": %s, "messages":[{"content":"%s","role":"user"}]}' % \
-            (args.max_length, "true" if args.do_stream else "false", prompt)
+        req_body = '{"model": "%s", "max_length": %d, "stream": %s, "messages":[{"content":"%s","role":"user"}]}' % \
+            (args.model, args.max_length, "true" if args.do_stream else "false", prompt)
         #print("Sending...", req_body)
         j = json.loads(req_body)
         print("Sending...", j)

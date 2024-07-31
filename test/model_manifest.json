@@ -1,0 +1,19 @@
+{
+    "models": [{
+        "model_id": "model_1",
+        "base_path": "microsoft/Phi-3-mini-4k-instruct-onnx",
+        "include_filter": "cpu_and_mobile/cpu-int4-rtn-block-32-acc-level-4",
+        "model_source": "HuggingFace"
+    },
+    {
+        "model_id": "model_2",
+        "base_path": "microsoft/Phi-3-mini-4k-instruct-onnx",
+        "include_filter": "cpu_and_mobile/cpu-int4-rtn-block-32-acc-level-4",
+        "model_source": "HuggingFace"
+    },
+    {
+        "model_id": "model_3",
+        "base_path": "/home/pranav/model_3",
+        "model_source": "Local"
+    }]
+}

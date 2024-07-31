@@ -1,10 +1,29 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
+
+#pragma once
+
+#include <exception>
 #include "json.hpp"
 
-namespace ops {
+namespace oas {
 enum class Status {
-  OK,
-  FAIL
+  kOk,
+  kFail,
+  kModelAlreadyDownloaded,
+  kModelNotDownloaded,
+  kModelNotRecognized,
+  kModelAlreadyLoaded
 };
+
+struct OasException : std::exception {
+  OasException(const std::string& err) : err_(std::move(err)) {}
+  const char* what() const noexcept override {
+    return err_.c_str();
+  }
+  const std::string err_;
+};
+
 static nlohmann::json FormatStreamingChatResponse(const char* content, bool stop) {
   /*
   OpenAI format
@@ -78,17 +97,17 @@ static nlohmann::json FormatNonStreamingChatResponse(const char* content) {
   return response;
 }
 
-static bool HasJsonKey(const nlohmann::json& body, const std::string& key) {
+static bool ContainsJsonKey(const nlohmann::json& body, const std::string& key) {
   // Fallback null to default value
   return body.contains(key) && !body.at(key).is_null();
 }
 
 template <typename T>
-static T JsonValue(const nlohmann::json& body, const std::string& key,
-                   const T& default_value) {
+static T GetJsonValue(const nlohmann::json& body, const std::string& key,
+                      const T& default_value) {
   // Fallback null to default value
   return body.contains(key) && !body.at(key).is_null()
              ? body.value(key, default_value)
              : default_value;
 }
-}  // namespace ops
+}  // namespace oas
