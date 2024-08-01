@@ -7,6 +7,7 @@
 #include "json.hpp"
 
 namespace oas {
+static const std::string kCmdLineModel = "__cmdline_model__";
 enum class Status {
   kOk,
   kFail,

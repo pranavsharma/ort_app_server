@@ -2,6 +2,7 @@
 * This is a _working_ prototype and under active development.
 
 ### What does this do?
+   * Load a model from the disk by supplying the path on the cmd line (-m option)
    * Pull (download) a model from hugging face or local disk
       * ```curl http://localhost:8080/v1/pull -d '{"model": "model_3"}'```
    * Load a model in memory
@@ -16,25 +17,13 @@
    * A single server process that both manages and serves models.
    * Can add new model sources and downloaders easily by writing just one function. See [this](src/model_downloader.h).
    * A separate [Model Manager](src/model_manager.h) module that can be integrated in the GenAI lib.
-   * Recognizes that models were downloaded before and doesn't download them again (obvious? yeah, but requires code).
+   * Recognizes that models were downloaded before and doesn't download them again.
    * Supports multiple models.
-
-### Input to the server
-   * A [manifest file](test/model_manifest.json) that defines the model and its source. Think of this as the registry of all ONNX model manifests. For now it's local but can be stored on a server.
-   * Path to the downloaded models that is managed by the server. This is where all the models will be downloaded.
-
-### Pending
-   * Clean up code
-   * Support EPs other than CPU
-   * Cross-platform
-   * Multi-modal APIs
-   * Write a better client application
-   * Handle concurrency concerns
-   * Streaming updates when model files are downloaded
 
 ## Build and Install
 ### Important Issues
-   * genai lib requires a fix in the header file to make a few functions 'inline' or else server won't compile
+   * genai lib requires a fix in ort_genai.h to make a few functions 'inline' for the server to compile
+      * SetLogBool, SetLogString, SetCurrentGpuDeviceId, GetCurrentGpuDeviceId
    * Openssl 3.x or later is required
 
 First install the latest onnxruntime-genai pkg here https://github.com/microsoft/onnxruntime-genai/releases/tag/v0.3.0
@@ -46,17 +35,39 @@ For release build: cmake -DORT_GENAI_DIR=<path of genai pkg installation> ..
 For debug build: cmake -DORT_GENAI_DIR=<path of genai pkg installation> -DCMAKE_BUILD_TYPE=Debug ..
 ```
 
-## Run
-```
-cd build
-LD_LIBRARY_PATH=<path of genai pkg installation> ./ort_app_server -h (to see help)
-```
+## Usage
+You can use the server in 2 ways. Either load a model from the cmd line or pull a model from a source given a manifest file.
 
-## Test
-* Hydrade the manifest file with the models
-* In one terminal, run the server as shown above (preferably in verbose mode)
-* Now, in a second terminal - pull a model
-* In a second terminal run ```python test/test_ort_app_server.py --model model_3 --do_stream```
+### Use a model from the cmd line
+1. In one terminal run the server as below
+```LD_LIBRARY_PATH=<path of genai pkg installation> ./build/ort_app_server -v --model <model path>```
+2. In another terminal run ```python test/test_ort_app_server.py --do_stream```
+
+### Pull models from remote sources (like HF)
+1. Hydrade the manifest file with the models. See [test manifest file](test/model_manifest.json) for an example.
+A manifest file is the same as ONNX model hub/registry.
+1. In one terminal, run the server as below
+```LD_LIBRARY_PATH=<path of genai pkg installation> ./build/ort_app_server -v --model_manifest_file test/model_manifest.json```
+1. Pull a model of your choice (specified in the manifest file) using the pull API
+```curl http://localhost:8080/v1/pull -d '{"model": "model_3"}'```
+1. (Optionally load the model) ```curl http://localhost:8080/v1/load -d '{"model": "model_3"}'```
+1. In another terminal run ```python test/test_ort_app_server.py --model model_3 --do_stream``` where ```model_3``` 
+is the model identifier specified in the manifest file.
+
+### TODO
+   * Clean up code
+   * Support EPs other than CPU
+   * Cross-platform
+   * Multi-modal APIs
+   * More OpenAI APIs (like embedding, tokenization)
+   * Additional parameters in chat completion API
+   * Write a better client application
+   * Handle concurrency concerns
+   * Unload model API
+   * Streaming updates when model files are downloaded
+   * Security (authentication, etc.)
+   * Intelligent eviction of models based on resource constraints
+   * Packaging
 
 ## Contribute
    * See [ORT coding guidelines](https://github.com/microsoft/onnxruntime/blob/main/docs/Coding_Conventions_and_Standards.md)

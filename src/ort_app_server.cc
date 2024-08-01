@@ -20,11 +20,11 @@ namespace fs = std::experimental::filesystem;
 struct ServerConfig {
   std::string host = "localhost";
   int port = 8080;
-  std::string model_path;
   bool verbose_mode = false;
   int nthreads = 0;
   std::string model_manifest_file;
   std::string downloaded_models_path = "/tmp/ort_app_server/models";
+  std::string cmd_line_model_path;
 };
 
 static void SetSearchOptions(const json& req_data, std::unique_ptr<OgaGeneratorParams>& params) {
@@ -171,12 +171,14 @@ static void HandleChatCompletions(oas::ModelManager& model_mgr, const httplib::R
     return;
   }
 
-  // auto model_id = kCmdLineModel;
-  // if (!oas::ContainsJsonKey(req_data, "model")) {
-  //   spdlog::warn("Using the model that was supplied on the cmd line when the server was started.");
-  // } else {
-  auto model_id = req_data["model"].get<std::string>();
-  // }
+  auto model_id = oas::kCmdLineModel;
+  if (!oas::ContainsJsonKey(req_data, "model")) {
+    spdlog::info(
+        "Using the model that was supplied on the cmd line when the server was started. "
+        "If you didn't supply one, this is going to result in an error.");
+  } else {
+    auto model_id = req_data["model"].get<std::string>();
+  }
 
   if (!model_mgr.GetModelRunner(model_id)) {
     spdlog::info("Model [{}] was not loaded before. Attempting to load the model first.", model_id);
@@ -325,16 +327,11 @@ static void SetupEndpoints(httplib::Server& svr, oas::ModelManager& model_mgr, c
   });
 }
 
-// static oas::Status LoadModelFromCmdLine(const std::string& model_path, oas::ModelManager& model_mgr) {
-//   ModelRunner model_runner;
-//   auto rc = ModelLoader::LoadModel(model_path, model_runner);
-//   if (rc != oas::Status::kOk) {
-//     spdlog::error("Loading model [{}] failed", model_path);
-//     return rc;
-//   }
-//   model_mgr.model_registry.AddModel(kCmdLineModel, model_path, std::move(model_runner));
-//   return oas::Status::kOk;
-// }
+static oas::Status LoadModelFromCmdLine(const std::string& model_path, oas::ModelManager& model_mgr) {
+  spdlog::info("Loading model from the cmd line [{}]", model_path);
+  model_mgr.AddModelMetadata(oas::kCmdLineModel, model_path);
+  return model_mgr.LoadModel(oas::kCmdLineModel);
+}
 
 static void ServerLogger(const httplib::Request& req, const httplib::Response& res) {
   if (spdlog::get_level() == spdlog::level::debug) {
@@ -389,12 +386,12 @@ static void RunServer(const ServerConfig& svr_config, httplib::Server& svr) {
 static void ReadCmdLineParams(int argc, char** argv, ServerConfig& svr_config) {
   CLI::App app("ORT App Server");
   argv = app.ensure_utf8(argv);
-  // app.add_option("-m,--model", svr_config.model_path, "Model path");
   app.add_option("-n,--hostname", svr_config.host, "Hostname to listen on (default: localhost)");
   app.add_option("-p,--port", svr_config.port, "Port number to listen on (default: 8080)");
   app.add_option("-t,--nthreads", svr_config.nthreads, "Numbter of threads to use");
+  app.add_option("-m,--model", svr_config.cmd_line_model_path, "Model folder containing the model to load");
   app.add_flag("-v, --verbose", svr_config.verbose_mode);
-  app.add_option("-f, --model_manifest_file", svr_config.model_manifest_file, "Model manifest file")->required();
+  app.add_option("-f, --model_manifest_file", svr_config.model_manifest_file, "Model manifest file");
   app.add_option("-d, --downloaded_models_path", svr_config.downloaded_models_path,
                  "Folder where models are downloaded (default: /tmp/ort_app_server/models/).");
   try {
@@ -411,8 +408,25 @@ int main(int argc, char** argv) {
   if (svr_config.verbose_mode)
     spdlog::set_level(spdlog::level::level_enum::debug);
 
-  oas::ModelManager model_mgr(svr_config.model_manifest_file, svr_config.downloaded_models_path);
-  // if (!svr_config.model_path.empty()) LoadModelFromCmdLine(svr_config.model_path, model_mgr);
+  oas::ModelManager model_mgr(svr_config.downloaded_models_path);
+
+  // Read manifest file if supplied
+  if (!svr_config.model_manifest_file.empty()) {
+    auto rc = model_mgr.InitializeModelManifestRegistry(svr_config.model_manifest_file);
+    if (rc != oas::Status::kOk) {
+      spdlog::error("Failed to read manifest file [{}]", svr_config.model_manifest_file);
+      exit(1);
+    }
+  }
+
+  // Load model from the cmd line if supplied
+  if (!svr_config.cmd_line_model_path.empty()) {
+    auto st = LoadModelFromCmdLine(svr_config.cmd_line_model_path, model_mgr);
+    if (st != oas::Status::kOk) {
+      spdlog::error("Failed to load model supplied on the cmd line.");
+      exit(1);
+    }
+  }
 
   httplib::Server svr;
   SetupServer(svr_config, svr);

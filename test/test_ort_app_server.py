@@ -27,8 +27,12 @@ def main() -> int:
         prompt = f'{chat_template.format(input=text)}'
         #print("prompt: ", prompt)
         headers = {'Accept': 'text/event-stream'}
-        req_body = '{"model": "%s", "max_length": %d, "stream": %s, "messages":[{"content":"%s","role":"user"}]}' % \
+        if (args.model):
+            req_body = '{"model": "%s", "max_length": %d, "stream": %s, "messages":[{"content":"%s","role":"user"}]}' % \
             (args.model, args.max_length, "true" if args.do_stream else "false", prompt)
+        else:
+            req_body = '{"max_length": %d, "stream": %s, "messages":[{"content":"%s","role":"user"}]}' % \
+            (args.max_length, "true" if args.do_stream else "false", prompt)
         #print("Sending...", req_body)
         j = json.loads(req_body)
         print("Sending...", j)
