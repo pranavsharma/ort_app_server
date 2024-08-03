@@ -16,6 +16,14 @@ std::vector<std::string> ModelManager::GetLoadedModelsList() {
   return ret;
 }
 
+std::vector<std::string> ModelManager::GetModelsFromManifest() {
+  std::vector<std::string> ret;
+  for (auto& [model_id, _] : model_manifest_registry) {
+    ret.push_back(model_id);
+  }
+  return ret;
+}
+
 ModelManager::ModelManager(const std::string& downloaded_models_path0)
     : downloaded_models_path(downloaded_models_path0) {
   model_hub_type_downloader_map[ModelSource::kHuggingFace] = DownloadHuggingFaceModel;
@@ -99,12 +107,13 @@ Status ModelManager::LoadModelImpl(const std::string& model_path, ModelRunner& m
 }
 
 void ModelManager::AddModelMetadata(const std::string& model_id, const std::string& model_path) {
+  std::lock_guard<std::mutex> lock(model_registry.mtx);
   model_registry.AddModelMetadata(model_id, model_path);
 }
 
 Status ModelManager::LoadModel(const std::string& model_id) {
   std::lock_guard<std::mutex> lock(model_registry.mtx);
-  if (model_id != kCmdLineModel && !model_registry.WasModelDownloaded(model_id)) {
+  if (!model_registry.WasModelDownloaded(model_id)) {
     spdlog::error("Model [{}] was not pulled before.", model_id);
     return Status::kModelNotDownloaded;
   }

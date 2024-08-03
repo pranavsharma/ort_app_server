@@ -25,6 +25,7 @@ struct ServerConfig {
   std::string model_manifest_file;
   std::string downloaded_models_path = "/tmp/ort_app_server/models";
   std::string cmd_line_model_path;
+  std::string cmd_line_model_id;
 };
 
 static void SetSearchOptions(const json& req_data, std::unique_ptr<OgaGeneratorParams>& params) {
@@ -171,14 +172,11 @@ static void HandleChatCompletions(oas::ModelManager& model_mgr, const httplib::R
     return;
   }
 
-  auto model_id = oas::kCmdLineModel;
   if (!oas::ContainsJsonKey(req_data, "model")) {
-    spdlog::info(
-        "Using the model that was supplied on the cmd line when the server was started. "
-        "If you didn't supply one, this is going to result in an error.");
-  } else {
-    auto model_id = req_data["model"].get<std::string>();
+    SetBadRequest(res, "The key 'model' was missing in request");
+    return;
   }
+  auto model_id = req_data["model"].get<std::string>();
 
   if (!model_mgr.GetModelRunner(model_id)) {
     spdlog::info("Model [{}] was not loaded before. Attempting to load the model first.", model_id);
@@ -223,8 +221,19 @@ static void HandleChatCompletions(oas::ModelManager& model_mgr, const httplib::R
   }
 }
 
-static void HandleListModels(oas::ModelManager& model_mgr, const httplib::Request& req, httplib::Response& res) {
+static void HandleListLoadedModels(oas::ModelManager& model_mgr, const httplib::Request& req, httplib::Response& res) {
   auto models = model_mgr.GetLoadedModelsList();
+  json ret;
+  ret["models"] = json::array();
+  for (auto& s : models) {
+    ret["models"].push_back(s);
+  }
+  res.status = 200;
+  res.set_content(ret.dump(), "application/json");
+}
+
+static void HandleListModels(oas::ModelManager& model_mgr, const httplib::Request& req, httplib::Response& res) {
+  auto models = model_mgr.GetModelsFromManifest();
   json ret;
   ret["models"] = json::array();
   for (auto& s : models) {
@@ -300,10 +309,14 @@ static void HandleLoadModel(oas::ModelManager& model_mgr, const httplib::Request
 }
 
 static void SetupEndpoints(httplib::Server& svr, oas::ModelManager& model_mgr, const ServerConfig& svr_config) {
-  svr.Get("/health", [&](const httplib::Request& req, httplib::Response& res) {
+  svr.Get("/v1/health", [&](const httplib::Request& req, httplib::Response& res) {
     res.status = 200;
     std::string content = "I'm Good!";
     res.set_content(content, "application/text");
+  });
+
+  svr.Get("/v1/ps", [&model_mgr](const httplib::Request& req, httplib::Response& res) {
+    HandleListLoadedModels(model_mgr, req, res);
   });
 
   svr.Get("/v1/models", [&model_mgr](const httplib::Request& req, httplib::Response& res) {
@@ -327,10 +340,10 @@ static void SetupEndpoints(httplib::Server& svr, oas::ModelManager& model_mgr, c
   });
 }
 
-static oas::Status LoadModelFromCmdLine(const std::string& model_path, oas::ModelManager& model_mgr) {
+static oas::Status LoadModelFromCmdLine(const std::string& model_id, const std::string& model_path, oas::ModelManager& model_mgr) {
   spdlog::info("Loading model from the cmd line [{}]", model_path);
-  model_mgr.AddModelMetadata(oas::kCmdLineModel, model_path);
-  return model_mgr.LoadModel(oas::kCmdLineModel);
+  model_mgr.AddModelMetadata(model_id, model_path);
+  return model_mgr.LoadModel(model_id);
 }
 
 static void ServerLogger(const httplib::Request& req, const httplib::Response& res) {
@@ -386,11 +399,14 @@ static void RunServer(const ServerConfig& svr_config, httplib::Server& svr) {
 static void ReadCmdLineParams(int argc, char** argv, ServerConfig& svr_config) {
   CLI::App app("ORT App Server");
   argv = app.ensure_utf8(argv);
+  app.add_flag("-v, --verbose", svr_config.verbose_mode);
   app.add_option("-n,--hostname", svr_config.host, "Hostname to listen on (default: localhost)");
   app.add_option("-p,--port", svr_config.port, "Port number to listen on (default: 8080)");
   app.add_option("-t,--nthreads", svr_config.nthreads, "Numbter of threads to use");
+  app.add_option("-i,--model_id", svr_config.cmd_line_model_id,
+                 "Model id (required if --model is used. "
+                 "Model id is used to identify the model in the server.)");
   app.add_option("-m,--model", svr_config.cmd_line_model_path, "Model folder containing the model to load");
-  app.add_flag("-v, --verbose", svr_config.verbose_mode);
   app.add_option("-f, --model_manifest_file", svr_config.model_manifest_file, "Model manifest file");
   app.add_option("-d, --downloaded_models_path", svr_config.downloaded_models_path,
                  "Folder where models are downloaded (default: /tmp/ort_app_server/models/).");
@@ -421,7 +437,11 @@ int main(int argc, char** argv) {
 
   // Load model from the cmd line if supplied
   if (!svr_config.cmd_line_model_path.empty()) {
-    auto st = LoadModelFromCmdLine(svr_config.cmd_line_model_path, model_mgr);
+    if (svr_config.cmd_line_model_id.empty()) {
+      spdlog::error("--model_id is required if --model is used. Model id is used to identify the model in the server.");
+      exit(1);
+    }
+    auto st = LoadModelFromCmdLine(svr_config.cmd_line_model_id, svr_config.cmd_line_model_path, model_mgr);
     if (st != oas::Status::kOk) {
       spdlog::error("Failed to load model supplied on the cmd line.");
       exit(1);

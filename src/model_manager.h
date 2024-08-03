@@ -32,6 +32,7 @@ class ModelManager {
   Status LoadModel(const std::string& model_id);
   void AddModelMetadata(const std::string& model_id, const std::string& model_path);
   std::vector<std::string> GetLoadedModelsList();
+  std::vector<std::string> GetModelsFromManifest();
 
  private:
   Status LoadModelsFromDisk(const std::string& downloaded_models_path);
