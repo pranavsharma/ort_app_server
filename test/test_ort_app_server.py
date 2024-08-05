@@ -16,7 +16,7 @@ def get_args() -> argparse:
 def print_help_msg():
     print("Available Commands:\n"
         "/?,/help         Print this message\n"
-        "/bye             Quit\n"
+        "/bye,/quit       Quit\n"
         "/pull <model id> Pull a model from the registry\n"
         "/load <model id> Load a model in the server\n"
         "/list            List models in the registry\n"
@@ -98,6 +98,7 @@ def main() -> int:
     chat_template = '< |user|>\\n{input} <|end|>\\n<|assistant|>'
     cmd_handlers = {"/?": print_help_msg,
                     "/bye": exit_program,
+                    "/quit": exit_program,
                     "/help": print_help_msg,
                     "/pull": pull_model,
                     "/load": load_model,
@@ -111,11 +112,11 @@ def main() -> int:
             continue
         if user_input.startswith("/"):
             tokens = user_input.split(' ', 1)
-            cmd = tokens[0]
-            cmd_to_run = cmd_handlers[cmd]
-            if not cmd_to_run:
+            cmd_key = tokens[0]
+            if cmd_key not in cmd_handlers:
                 print("Invalid cmd. Please run /? or /help\n")
                 continue
+            cmd_to_run = cmd_handlers[cmd_key]
             if len(tokens) > 1:
                 cmd_args = tokens[1]
                 cmd_to_run(cmd_args)
@@ -133,7 +134,7 @@ def main() -> int:
             if (len(model_list) == 1):
                 current_model_id = model_list[0]
             else:
-                print("Load a model first using the /load command")
+                print("Load a model first using the /load command. You can get a list of models by running /list")
                 continue
         
         # now construct the request
